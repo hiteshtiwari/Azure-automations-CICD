@@ -1,0 +1,98 @@
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - '*'
+    exclude:
+      - version.sbt
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  IVY_PATH: /home/vsts/.ivy2
+  system_accesstoken: $(System.AccessToken)
+
+steps:
+  - checkout: self
+    persistCredentials: true
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.x'
+      addToPath: true
+      architecture: 'x64'
+  - task: Cache@2
+    inputs:
+      key: 'key123'
+      path: $(IVY_PATH)
+      restoreKeys: 'dbkey123'
+    displayName: Cache Ivy
+  - task: CmdLine@2
+    inputs:
+      failOnStderr : false
+      script: |
+        git config --global user.email "azure_devops@test.com"
+        git config --global user.name "AzureDevops"
+        git checkout $(Build.SourceBranchName)
+    displayName: 'Configuring git details'
+  - task: CmdLine@2
+    inputs:
+      failOnStderr : false
+      script: |
+        sbt clean
+        sbt test
+    displayName: 'Run tests'
+  - task: CmdLine@2
+    inputs:
+      failOnStderr : false
+      script: |
+        sbt assembly
+    displayName: 'Creating fat jar'
+  - task: CmdLine@2
+    inputs:
+      failOnStderr : false
+      script: |
+        sbt "release with-defaults"
+        git push
+    displayName: 'Increment artifact version'
+  - task: configuredatabricks@0  # Task to fetch from azure 
+    inputs:
+      url: $(workspace)
+      token: $(token)
+    displayName: 'Set Databricks credentials'
+  - script: |
+      echo "[DEFAULT]" > ~/.databrickscfg
+      echo "host = <databricks url>" >> ~/.databrickscfg
+      echo "token = <databricks token>" >> ~/.databrickscfg
+    displayName: "Configure Databricks CLI"
+  - script: |
+      dbfs mkdirs dbfs:/FileStore/applications/$(Build.Repository.Name)
+      dbfs mkdirs dbfs:/FileStore/applications/$(Build.Repository.Name)/archive
+
+      jarArr=($(ls -l */target/scala*/*.jar | awk '{split($0,a," "); print a[9]}'))
+
+      for path in "${jarArr[@]}"
+      do
+         dirname=`echo "$path" | awk '{split($0,a,"/"); print a[1]}'`
+
+         echo "Running command: dbfs mkdirs $path dbfs:/FileStore/applications/$(Build.Repository.Name)/$dirname"
+         dbfs mkdirs dbfs:/FileStore/applications/$(Build.Repository.Name)/$dirname
+
+         dbfsJars=`dbfs ls -l dbfs:/FileStore/applications/$(Build.Repository.Name)/$dirname/ | awk '{split($0,a," "); print a[3]}'`
+         dbfsJarsArr=($(echo "$dbfsJars" | awk '{split($0,a," "); print a[1]}'))
+
+         echo "Running command: dbfs cp $path dbfs:/FileStore/applications/$(Build.Repository.Name)/$dirname"
+         dbfs cp $path dbfs:/FileStore/applications/$(Build.Repository.Name)/$dirname
+         echo "Running command: dbfs cp $path dbfs:/FileStore/applications/$(Build.Repository.Name)/archive"
+         dbfs cp $path dbfs:/FileStore/applications/$(Build.Repository.Name)/archive
+
+         # Removing old jars
+         for oldjar in "${dbfsJarsArr[@]}"
+         do
+           echo "Running command: dbfs rm dbfs:/FileStore/applications/$(Build.Repository.Name)/$dirname/$oldjar"
+           dbfs rm dbfs:/FileStore/applications/$(Build.Repository.Name)/$dirname/$oldjar
+         done
+      done
+    displayName: "Copy jar files in DBFS"
