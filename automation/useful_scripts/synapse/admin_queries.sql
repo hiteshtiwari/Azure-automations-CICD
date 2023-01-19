@@ -12,5 +12,9 @@ SELECT state_desc, permission_name, class_desc,
        JOIN sys.database_principals AS Prin
        ON Perm.major_ID = Prin.principal_id AND class_desc = 'SCHEMA' order by schema_name;
        
-       
+-- Columns in table with datatype. Need to replace table_name 
+SELECT ORDINAL_POSITION, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+       , IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = '<Table_name>'
 -- #Azure #Microsoft_Azure #Synapse
