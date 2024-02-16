@@ -1,0 +1,41 @@
+def insert_update_delete_upsert_records_delta(target_delta_table_path, src_dataframe, joining_key_list=[], operation='insert'):
+    '''
+    This function is to insert, update, delete and upsert all the fields, it wont work on to update the some fields.
+    This function takes 3 paramaters as inputs.
+    target_delta_table_path =  <path_of the target delta table from which we want to delete the records.>
+    src_dataframe = source_dataframe
+    joining_key_list = ['key1', 'key2', 'key3']
+
+    if target_delta_table_path == '' or target_delta_table_path is None:
+       raise Exception("Target delta table path has not been provided, please pass and run")
+    if src_dataframe == '' or src_dataframe is None:
+       raise Exception("Source dataframe is not passed, please pass and run")
+    if joining_key_list == [] or joining_key_list is None:
+       raise Exception("No joining key passed, please pass and run")
+    '''
+    try:
+        # sourceDF = src_dataframe
+        keys = src_dataframe
+        merge_key = []
+        for key in joining_key_list:
+            merge_key.append(f"t.{key} == s.{key}")
+        merge_condition = " AND ".join(merge_key)
+
+        from delta.tables import DeltaTable
+        if (DeltaTable.isDeltaTable(spark, f'{target_delta_table_path}')):
+            targetDeltaTable = DeltaTable.forPath(spark, f'{target_delta_table_path}')
+            if operation.lower() == 'insert':
+                targetDeltaTable.alias("t").merge(keys.alias("s"), f"{merge_condition}").whenNotMatchedInsertAll().execute()
+            elif operation.lower() == 'delete':
+                targetDeltaTable.alias("t").merge(keys.alias("s"), f"{merge_condition}").whenMatchedDelete().execute()
+            elif operation.lower() == 'update':
+                targetDeltaTable.alias("t").merge(keys.alias("s"), f"{merge_condition}").whenMatchedUpdateAll().execute()
+            elif operation.lower() == 'upsert':
+                targetDeltaTable.alias("t").merge(keys.alias("s"), f"{merge_condition}").whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
+        print(f"{operation} activity completed...")
+        return True
+    except Exception as err:
+        print(f'{operation} activity got failed with error: {err}')
+        return False
+
+#Databricks, #Spark, #DeltaTable, #Merge
