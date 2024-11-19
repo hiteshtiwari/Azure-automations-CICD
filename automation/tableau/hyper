@@ -1,0 +1,20 @@
+What is Hyper: Hyper is Tableau's blazingly fast SQL engine powering Tableau's real time analytics and interactive exploration and Tableau Prep's ETL transformations.
+ 
+
+Following are the steps to load data in Hyper file.
+
+# Generate Hyper file from Tableau server and copy in local path.
+
+from packages.hyper_file import HyperFile
+parquet_folder = '<complete_folder_of_parquet_files_folder>'
+parquet_extension = 'parquet' # Optional. Don't use it if the parquet files have no extension
+hf = HyperFile(parquet_folder)
+hyper_filename = "<complete_path_of_hyper_file>"
+rows  = hf.append_rows(hyper_filename)
+print(f'{rows} were appended.')
+
+Limitation: it only runs on local file-system
+
+ 
+#Tableau #hyper #parquet_to_hyper #delta_to_hyper
+ 
